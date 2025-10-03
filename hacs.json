@@ -3,6 +3,5 @@
   "content_in_root": false,
   "filename": "homebrainz.zip",
   "render_readme": true,
-  "hide_default_branch": true,
-  "image": "logo.png"
+  "hide_default_branch": true
 }
