@@ -1,5 +1,9 @@
 # HomeBrainz Home Assistant Integration
 
+<p align="center">
+  <img src="custom_components/homebrainz/icons/logo.svg" alt="HomeBrainz Logo" width="200">
+</p>
+
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]](LICENSE)

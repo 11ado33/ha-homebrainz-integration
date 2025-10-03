@@ -1,5 +1,9 @@
 ## HomeBrainz Clock Integration
 
+<p align="center">
+  <img src="icon.svg" alt="HomeBrainz Logo" width="150">
+</p>
+
 Connect your HomeBrainz Clock device to Home Assistant for comprehensive environmental monitoring.
 
 ### Features
