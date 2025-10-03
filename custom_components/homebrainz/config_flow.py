@@ -50,12 +50,12 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
                 
                 status_data = await response.json()
                 
-                # Verify it's an ESPTimeCast device by checking for expected fields
-                if "device_name" not in status_data:
+                # Verify it's a HomeBrainz Clock device by checking for expected fields
+                if "device" not in status_data:
                     raise InvalidDevice
                 
                 # Get device info for unique ID
-                device_name = status_data.get("device_name", "ESPTimeCast")
+                device_name = status_data.get("device", "HomeBrainz Clock")
                 mac_address = status_data.get("mac_address", "")
                 
                 return {
@@ -115,4 +115,4 @@ class CannotConnect(HomeAssistantError):
 
 
 class InvalidDevice(HomeAssistantError):
-    """Error to indicate the device is not a valid ESPTimeCast device."""
+    """Error to indicate the device is not a valid HomeBrainz Clock device."""

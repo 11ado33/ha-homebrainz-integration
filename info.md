@@ -1,6 +1,6 @@
-## HomeBrainz ESPTimeCast Integration
+## HomeBrainz Clock Integration
 
-Connect your HomeBrainz ESPTimeCast device to Home Assistant for comprehensive environmental monitoring.
+Connect your HomeBrainz Clock device to Home Assistant for comprehensive environmental monitoring.
 
 ### Features
 
@@ -18,7 +18,7 @@ Connect your HomeBrainz ESPTimeCast device to Home Assistant for comprehensive e
 
 ### Quick Setup
 
-1. Ensure your ESPTimeCast device is connected to your WiFi network
+1. Ensure your HomeBrainz Clock device is connected to your WiFi network
 2. Note the device's IP address
 3. Add the integration through **Settings** > **Devices & Services** > **Add Integration**
 4. Search for "HomeBrainz" and enter your device IP address

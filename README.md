@@ -23,7 +23,7 @@ Platform | Description
 
 ## Supported Devices
 
-- HomeBrainz ESPTimeCast with sensor package
+- HomeBrainz Clock with sensor package
   - AHT20 Temperature & Humidity Sensor
   - BMP280 Barometric Pressure Sensor  
   - ENS160 Air Quality Sensor (AQI, CO2, TVOC)
@@ -59,7 +59,7 @@ Platform | Description
 1. In Home Assistant, go to **Settings** > **Devices & Services**
 2. Click **Add Integration**
 3. Search for "HomeBrainz" and select it
-4. Enter your ESPTimeCast device's IP address (e.g., `192.168.1.207`)
+4. Enter your HomeBrainz Clock device's IP address (e.g., `192.168.1.207`)
 5. Click **Submit**
 
 The integration will automatically discover your device and create all available sensor entities.
@@ -85,7 +85,7 @@ Once configured, the integration will create the following entities:
 
 ## Device Configuration
 
-Your ESPTimeCast device can be configured through its web interface. The integration provides a direct link to the device configuration page in the device information panel.
+Your HomeBrainz Clock device can be configured through its web interface. The integration provides a direct link to the device configuration page in the device information panel.
 
 ### Web Interface Features
 

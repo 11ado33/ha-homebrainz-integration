@@ -4,7 +4,7 @@ DOMAIN = "homebrainz"
 
 # Device info
 MANUFACTURER = "HomeBrainz"
-MODEL = "ESPTimeCast"
+MODEL = "HomeBrainz Clock"
 
 # Default values
 DEFAULT_PORT = 80

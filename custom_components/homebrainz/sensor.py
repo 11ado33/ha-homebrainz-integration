@@ -59,12 +59,12 @@ class HomeBrainzSensorEntity(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information."""
-        device_name = "ESPTimeCast"
+        device_name = "HomeBrainz Clock"
         mac_address = ""
         
         if self.coordinator.data and "status" in self.coordinator.data:
             status = self.coordinator.data["status"]
-            device_name = status.get("device_name", "ESPTimeCast")
+            device_name = status.get("device", "HomeBrainz Clock")
             mac_address = status.get("mac_address", "")
 
         return DeviceInfo(
@@ -72,7 +72,7 @@ class HomeBrainzSensorEntity(CoordinatorEntity, SensorEntity):
             name=device_name,
             manufacturer=MANUFACTURER,
             model=MODEL,
-            sw_version=self.coordinator.data.get("status", {}).get("firmware_version", "Unknown"),
+            sw_version=self.coordinator.data.get("status", {}).get("version", "Unknown"),
             configuration_url=f"http://{self._host}",
         )
 
@@ -252,5 +252,5 @@ class HomeBrainzWiFiSignalSensor(HomeBrainzSensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data and "status" in self.coordinator.data:
             status = self.coordinator.data["status"]
-            return status.get("wifi_rssi")
+            return status.get("rssi")
         return None
