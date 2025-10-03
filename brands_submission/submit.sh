@@ -19,7 +19,7 @@ if [ ! -d "../brands" ]; then
     echo "Please enter your GitHub username:"
     read github_username
     git remote set-url origin https://github.com/$github_username/brands.git
-    cd ../ha-homebrainz-integration/brands_submission
+    cd brands_submission
 else
     echo "✅ Brands repository found"
 fi
@@ -33,8 +33,8 @@ git checkout -b add-homebrainz-brand
 
 # Copy files
 echo "📁 Copying brand files..."
-cp ../ha-homebrainz-integration/brands_submission/custom_integrations/homebrainz.json custom_integrations/
-cp -r ../ha-homebrainz-integration/brands_submission/custom_integrations/homebrainz custom_integrations/
+cp ../brands_submission/custom_integrations/homebrainz.json custom_integrations/
+cp -r ../brands_submission/custom_integrations/homebrainz custom_integrations/
 
 # Commit
 echo "💾 Committing changes..."
