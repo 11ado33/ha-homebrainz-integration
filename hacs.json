@@ -1,0 +1,7 @@
+{
+  "name": "HomeBrainz",
+  "content_in_root": false,
+  "filename": "homebrainz.zip",
+  "render_readme": true,
+  "hide_default_branch": true
+}

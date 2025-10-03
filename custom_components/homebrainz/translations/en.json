@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "HomeBrainz ESPTimeCast",
+        "description": "Set up your HomeBrainz ESPTimeCast device",
+        "data": {
+          "host": "Device IP Address or Hostname"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device. Please check the IP address and ensure the device is powered on and connected to your network.",
+      "invalid_device": "The device at this address does not appear to be a HomeBrainz ESPTimeCast device.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  }
+}
