@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-UPDATE_INTERVAL = timedelta(seconds=30)  # Fallback polling interval
+UPDATE_INTERVAL = timedelta(seconds=300)  # 5 minute fallback polling (WebSocket is primary)
 WEBSOCKET_RETRY_DELAY = 10  # seconds
 WEBSOCKET_MAX_RETRIES = 5
 
