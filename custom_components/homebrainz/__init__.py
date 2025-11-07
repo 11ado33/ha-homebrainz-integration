@@ -157,6 +157,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def _handle_websocket_message(self, data: dict):
         """Handle incoming WebSocket message."""
         message_type = data.get("type")
+        _LOGGER.debug("Received WebSocket message type: %s", message_type)
         
         if message_type == "sensor_update":
             # Real-time sensor data update
@@ -168,13 +169,14 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 "status": status_data
             }
             
+            _LOGGER.info("Updating sensor data via WebSocket: %s", sensor_data)
             # Update coordinator data immediately
             self.async_set_updated_data(new_data)
-            _LOGGER.debug("Received real-time sensor update")
             
         elif message_type == "status_update":
             # Status update from device
             status_data = data.get("data", {})
+            _LOGGER.debug("Received status update: %s", status_data)
             
             # If we have previous data, merge with status
             if self.data:
@@ -225,9 +227,11 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data via HTTP (fallback when WebSocket is not available)."""
         if self._websocket_connected:
-            # WebSocket is handling updates, return current data
-            return self.data
+            # WebSocket is handling updates, skip coordinator updates
+            _LOGGER.debug("Skipping coordinator update - WebSocket is active")
+            raise UpdateFailed("WebSocket active, skipping coordinator polling")
             
+        _LOGGER.debug("WebSocket not connected, using HTTP polling")
         try:
             async with async_timeout.timeout(10):
                 # Fetch sensor data from the device

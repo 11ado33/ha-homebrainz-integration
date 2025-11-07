@@ -1,5 +1,6 @@
 """Sensor platform for HomeBrainz integration."""
 from __future__ import annotations
+import logging
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -20,6 +21,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import HomeBrainzDataUpdateCoordinator
 from .const import DOMAIN, MANUFACTURER, MODEL
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -99,7 +102,10 @@ class HomeBrainzTemperatureSensor(HomeBrainzSensorEntity):
         if self.coordinator.data and "sensors" in self.coordinator.data:
             sensors = self.coordinator.data["sensors"]
             if "aht20" in sensors:
-                return sensors["aht20"].get("temperature")
+                temp = sensors["aht20"].get("temperature")
+                _LOGGER.debug("Temperature sensor returning value: %s", temp)
+                return temp
+        _LOGGER.debug("Temperature sensor: no data available")
         return None
 
 
