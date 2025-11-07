@@ -1,0 +1,52 @@
+# Services for HomeBrainz integration
+
+set_brightness:
+  name: Set Display Brightness
+  description: Set the display brightness of the HomeBrainz device
+  fields:
+    device_id:
+      name: Device
+      description: The HomeBrainz device to control
+      required: true
+      selector:
+        device:
+          integration: homebrainz
+    brightness:
+      name: Brightness Level
+      description: Brightness level (0-15, where 0 is dimmest and 15 is brightest)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 15
+          step: 1
+
+display_text:
+  name: Display Custom Text
+  description: Display custom text on the HomeBrainz device
+  fields:
+    device_id:
+      name: Device
+      description: The HomeBrainz device to control
+      required: true
+      selector:
+        device:
+          integration: homebrainz
+    text:
+      name: Text
+      description: The text to display on the device
+      required: true
+      selector:
+        text:
+
+restart_device:
+  name: Restart Device
+  description: Restart the HomeBrainz device
+  fields:
+    device_id:
+      name: Device
+      description: The HomeBrainz device to restart
+      required: true
+      selector:
+        device:
+          integration: homebrainz

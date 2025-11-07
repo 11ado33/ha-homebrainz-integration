@@ -6,11 +6,11 @@
   "dependencies": [],
   "documentation": "https://github.com/11ado33/ha-homebrainz-integration",
   "homekit": {},
-  "iot_class": "local_polling",
+  "iot_class": "local_push",
   "issue_tracker": "https://github.com/11ado33/ha-homebrainz-integration/issues",
   "loggers": ["custom_components.homebrainz"],
-  "requirements": ["aiohttp>=3.8.0"],
+  "requirements": ["aiohttp>=3.8.0", "websockets>=11.0"],
   "ssdp": [],
-  "version": "1.0.1",
+  "version": "2.0.0",
   "zeroconf": []
 }
