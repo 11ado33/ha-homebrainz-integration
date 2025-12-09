@@ -147,12 +147,32 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _send_websocket_command(self, command: dict):
         """Send a command to the WebSocket."""
-        if self._websocket and not self._websocket.closed:
+        if not self._websocket:
+            _LOGGER.debug("Skipping send; WebSocket not connected: %s", command)
+            return
+
+        websocket = self._websocket
+        is_closed = getattr(websocket, "closed", False)
+        # Some versions of the websockets library expose ``closed`` as an awaitable or callable
+        if callable(is_closed):
             try:
-                await self._websocket.send(json.dumps(command))
-                _LOGGER.debug("Sent WebSocket command: %s", command)
-            except Exception as err:
-                _LOGGER.error("Error sending WebSocket command: %s", err)
+                is_closed = is_closed()
+            except Exception:  # pragma: no cover - defensive guard
+                is_closed = False
+
+        if is_closed:
+            _LOGGER.debug("Skipping send; WebSocket already closed: %s", command)
+            return
+
+        try:
+            await websocket.send(json.dumps(command))
+            _LOGGER.debug("Sent WebSocket command: %s", command)
+        except (WebSocketException, ConnectionClosedError, OSError) as err:
+            _LOGGER.warning("WebSocket send failed (%s); marking connection closed", err)
+            self._websocket_connected = False
+            self._websocket = None
+        except Exception as err:  # pragma: no cover - unexpected errors
+            _LOGGER.error("Error sending WebSocket command: %s", err)
 
     async def _handle_websocket_message(self, data: dict):
         """Handle incoming WebSocket message."""

@@ -101,10 +101,19 @@ class HomeBrainzTemperatureSensor(HomeBrainzSensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data and "sensors" in self.coordinator.data:
             sensors = self.coordinator.data["sensors"]
+
+            # Prefer BME680 temperature
+            if "bme680" in sensors:
+                temp = sensors["bme680"].get("temperature")
+                _LOGGER.debug("Temperature sensor returning BME680 value: %s", temp)
+                return temp
+
+            # Legacy fallback for older firmware
             if "aht20" in sensors:
                 temp = sensors["aht20"].get("temperature")
-                _LOGGER.debug("Temperature sensor returning value: %s", temp)
+                _LOGGER.debug("Temperature sensor returning legacy AHT20 value: %s", temp)
                 return temp
+
         _LOGGER.debug("Temperature sensor: no data available")
         return None
 
@@ -130,6 +139,10 @@ class HomeBrainzHumiditySensor(HomeBrainzSensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data and "sensors" in self.coordinator.data:
             sensors = self.coordinator.data["sensors"]
+
+            if "bme680" in sensors:
+                return sensors["bme680"].get("humidity")
+
             if "aht20" in sensors:
                 return sensors["aht20"].get("humidity")
         return None
@@ -156,6 +169,10 @@ class HomeBrainzPressureSensor(HomeBrainzSensorEntity):
         """Return the state of the sensor."""
         if self.coordinator.data and "sensors" in self.coordinator.data:
             sensors = self.coordinator.data["sensors"]
+
+            if "bme680" in sensors:
+                return sensors["bme680"].get("pressure")
+
             if "bmp280" in sensors:
                 return sensors["bmp280"].get("pressure")
         return None
