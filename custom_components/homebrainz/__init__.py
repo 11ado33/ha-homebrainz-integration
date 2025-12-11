@@ -5,6 +5,7 @@ import asyncio
 import logging
 from datetime import timedelta
 import json
+from copy import deepcopy
 import voluptuous as vol
 
 import aiohttp
@@ -23,7 +24,7 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER]
 
 UPDATE_INTERVAL = timedelta(seconds=300)  # 5 minute fallback polling (WebSocket is primary)
 WEBSOCKET_RETRY_DELAY = 10  # seconds
@@ -181,30 +182,48 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
         
         if message_type == "sensor_update":
             # Real-time sensor data update
-            sensor_data = data.get("data", {})
-            status_data = {"uptime": data.get("timestamp", 0)}  # Basic status
-            
-            new_data = {
-                "sensors": sensor_data,
-                "status": status_data
-            }
-            
-            _LOGGER.info("Updating sensor data via WebSocket: %s", sensor_data)
-            # Update coordinator data immediately
-            self.async_set_updated_data(new_data)
+            raw_sensor_data = data.get("data", {}) or {}
+            if not isinstance(raw_sensor_data, dict):
+                raw_sensor_data = {}
+
+            sensors_available = data.get("sensors_available")
+            if sensors_available is not None:
+                raw_sensor_data.setdefault("sensors_available", sensors_available)
+
+            existing = self.data or {"sensors": {}, "status": {}}
+            current_status = deepcopy(existing.get("status", {}))
+
+            timestamp = data.get("timestamp")
+            if timestamp is not None:
+                current_status["last_sensor_update"] = timestamp
+
+            _LOGGER.info("Updating sensor data via WebSocket: %s", raw_sensor_data)
+            self.async_set_updated_data({
+                "sensors": raw_sensor_data,
+                "status": current_status,
+            })
             
         elif message_type == "status_update":
             # Status update from device
-            status_data = data.get("data", {})
-            _LOGGER.debug("Received status update: %s", status_data)
-            
-            # If we have previous data, merge with status
-            if self.data:
-                new_data = self.data.copy()
-                new_data["status"] = status_data
-                self.async_set_updated_data(new_data)
-            else:
-                # First status update, request sensor data too
+            status_payload = data.get("data", {}) or {}
+            if not isinstance(status_payload, dict):
+                status_payload = {}
+
+            timestamp = data.get("timestamp")
+            if timestamp is not None:
+                status_payload.setdefault("last_status_update", timestamp)
+
+            _LOGGER.debug("Received status update: %s", status_payload)
+
+            existing = self.data or {"sensors": {}, "status": {}}
+            sensors_snapshot = deepcopy(existing.get("sensors", {}))
+
+            self.async_set_updated_data({
+                "sensors": sensors_snapshot,
+                "status": status_payload,
+            })
+
+            if not sensors_snapshot:
                 await self._send_websocket_command({"command": "get_sensors"})
                 
         elif message_type == "ping":
@@ -217,22 +236,41 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             success = data.get("success", False)
             
             if success and command == "get_sensors":
-                sensor_data = data.get("data", {})
-                if self.data:
-                    new_data = self.data.copy()
-                    new_data["sensors"] = sensor_data
-                    self.async_set_updated_data(new_data)
-                else:
-                    self.async_set_updated_data({"sensors": sensor_data, "status": {}})
+                sensor_data = data.get("data", {}) or {}
+                if not isinstance(sensor_data, dict):
+                    sensor_data = {}
+
+                existing = self.data or {"sensors": {}, "status": {}}
+                current_status = deepcopy(existing.get("status", {}))
+
+                self.async_set_updated_data({
+                    "sensors": sensor_data,
+                    "status": current_status,
+                })
                     
             elif success and command == "get_status":
-                status_data = data.get("data", {})
-                if self.data:
-                    new_data = self.data.copy()
-                    new_data["status"] = status_data
-                    self.async_set_updated_data(new_data)
-                else:
-                    self.async_set_updated_data({"sensors": {}, "status": status_data})
+                status_data = data.get("data", {}) or {}
+                if not isinstance(status_data, dict):
+                    status_data = {}
+
+                existing = self.data or {"sensors": {}, "status": {}}
+                sensors_snapshot = deepcopy(existing.get("sensors", {}))
+
+                self.async_set_updated_data({
+                    "sensors": sensors_snapshot,
+                    "status": status_data,
+                })
+            elif success:
+                response_data = data.get("data", {}) or {}
+                if isinstance(response_data, dict) and response_data:
+                    existing = self.data or {"sensors": {}, "status": {}}
+                    sensors_snapshot = deepcopy(existing.get("sensors", {}))
+                    status_snapshot = deepcopy(existing.get("status", {}))
+                    status_snapshot.update(response_data)
+                    self.async_set_updated_data({
+                        "sensors": sensors_snapshot,
+                        "status": status_snapshot,
+                    })
 
     async def send_device_command(self, command: str, **kwargs):
         """Send a command to the device."""
@@ -247,11 +285,9 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data via HTTP (fallback when WebSocket is not available)."""
         if self._websocket_connected:
-            # WebSocket is handling updates, skip coordinator updates
-            _LOGGER.debug("Skipping coordinator update - WebSocket is active")
-            raise UpdateFailed("WebSocket active, skipping coordinator polling")
-            
-        _LOGGER.debug("WebSocket not connected, using HTTP polling")
+            _LOGGER.debug("WebSocket active, augmenting data via HTTP polling")
+        else:
+            _LOGGER.debug("WebSocket not connected, using HTTP polling")
         try:
             async with async_timeout.timeout(10):
                 # Fetch sensor data from the device
@@ -267,10 +303,10 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                         status_data = await response.json()
                     else:
                         raise UpdateFailed(f"Error communicating with device: {response.status}")
-                
+
                 return {
-                    "sensors": sensor_data,
-                    "status": status_data
+                    "sensors": sensor_data if isinstance(sensor_data, dict) else {},
+                    "status": status_data if isinstance(status_data, dict) else {},
                 }
                 
         except aiohttp.ClientError as err:
