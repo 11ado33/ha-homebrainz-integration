@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_SCREEN_ORDER = [
     "clock",
-    "temperature",
+    "temp",
     "humidity",
     "pressure",
     "gas",
@@ -30,7 +30,7 @@ DEFAULT_SCREEN_ORDER = [
 
 SCREEN_LABELS = {
     "clock": "Clock",
-    "temperature": "Temperature",
+    "temp": "Temperature",
     "humidity": "Humidity",
     "pressure": "Pressure",
     "gas": "Gas",
