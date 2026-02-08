@@ -11,6 +11,6 @@
   "loggers": ["custom_components.homebrainz"],
   "requirements": ["aiohttp>=3.8.0", "websockets>=11.0"],
   "ssdp": [],
-  "version": "0.0.6",
+  "version": "0.0.8",
   "zeroconf": []
 }

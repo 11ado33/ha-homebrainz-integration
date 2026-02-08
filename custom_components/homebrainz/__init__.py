@@ -19,12 +19,13 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH]
 
 UPDATE_INTERVAL = timedelta(seconds=300)  # 5 minute fallback polling (WebSocket is primary)
 WEBSOCKET_RETRY_DELAY = 10  # seconds
@@ -196,8 +197,9 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             if sensors_available is not None:
                 raw_sensor_data.setdefault("sensors_available", sensors_available)
 
-            existing = self.data or {"sensors": {}, "status": {}}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": []}
             current_status = deepcopy(existing.get("status", {}))
+            screens_snapshot = deepcopy(existing.get("screens", []))
 
             timestamp = data.get("timestamp")
             if timestamp is not None:
@@ -207,6 +209,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             self.async_set_updated_data({
                 "sensors": raw_sensor_data,
                 "status": current_status,
+                "screens": screens_snapshot,
             })
             
         elif message_type == "status_update":
@@ -221,12 +224,14 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
 
             _LOGGER.debug("Received status update: %s", status_payload)
 
-            existing = self.data or {"sensors": {}, "status": {}}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": []}
             sensors_snapshot = deepcopy(existing.get("sensors", {}))
+            screens_snapshot = deepcopy(existing.get("screens", []))
 
             self.async_set_updated_data({
                 "sensors": sensors_snapshot,
                 "status": status_payload,
+                "screens": screens_snapshot,
             })
 
             if not sensors_snapshot:
@@ -246,12 +251,14 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not isinstance(sensor_data, dict):
                     sensor_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": []}
                 current_status = deepcopy(existing.get("status", {}))
+                screens_snapshot = deepcopy(existing.get("screens", []))
 
                 self.async_set_updated_data({
                     "sensors": sensor_data,
                     "status": current_status,
+                    "screens": screens_snapshot,
                 })
                     
             elif success and command == "get_status":
@@ -259,23 +266,27 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not isinstance(status_data, dict):
                     status_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": []}
                 sensors_snapshot = deepcopy(existing.get("sensors", {}))
+                screens_snapshot = deepcopy(existing.get("screens", []))
 
                 self.async_set_updated_data({
                     "sensors": sensors_snapshot,
                     "status": status_data,
+                    "screens": screens_snapshot,
                 })
             elif success:
                 response_data = data.get("data", {}) or {}
                 if isinstance(response_data, dict) and response_data:
-                    existing = self.data or {"sensors": {}, "status": {}}
+                    existing = self.data or {"sensors": {}, "status": {}, "screens": []}
                     sensors_snapshot = deepcopy(existing.get("sensors", {}))
                     status_snapshot = deepcopy(existing.get("status", {}))
+                    screens_snapshot = deepcopy(existing.get("screens", []))
                     status_snapshot.update(response_data)
                     self.async_set_updated_data({
                         "sensors": sensors_snapshot,
                         "status": status_snapshot,
+                        "screens": screens_snapshot,
                     })
 
     async def send_device_command(self, command: str, **kwargs):
@@ -310,9 +321,25 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                     else:
                         raise UpdateFailed(f"Error communicating with device: {response.status}")
 
+                screens_data = None
+                try:
+                    async with self.session.get(f"http://{self.host}/display/screens") as response:
+                        if response.status == 200:
+                            screens_data = await response.json()
+                except (aiohttp.ClientError, asyncio.TimeoutError):
+                    _LOGGER.debug("Unable to fetch screen rotation; keeping cached values")
+
+                existing = self.data or {"screens": []}
+                screens = existing.get("screens", [])
+                if isinstance(screens_data, dict):
+                    screens_value = screens_data.get("screens")
+                    if isinstance(screens_value, list):
+                        screens = screens_value
+
                 return {
                     "sensors": sensor_data if isinstance(sensor_data, dict) else {},
                     "status": status_data if isinstance(status_data, dict) else {},
+                    "screens": screens,
                 }
                 
         except aiohttp.ClientError as err:
@@ -340,6 +367,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services if this is the first entry
     if len(hass.data[DOMAIN]) == 1:
         await async_setup_services(hass)
+
+    return True
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old config entries."""
+    if entry.version < 2:
+        entity_registry = er.async_get(hass)
+        entries = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        removed = 0
+
+        for entity in entries:
+            should_remove = entity.domain == "weather"
+            if not should_remove:
+                haystack = " ".join(
+                    part for part in (entity.unique_id, entity.original_name, entity.entity_id) if part
+                ).lower()
+                should_remove = "weather" in haystack or "forecast" in haystack
+
+            if should_remove:
+                _LOGGER.info("Removing deprecated weather entity: %s", entity.entity_id)
+                entity_registry.async_remove(entity.entity_id)
+                removed += 1
+
+        if removed:
+            _LOGGER.info("Removed %d deprecated weather entities", removed)
+
+        hass.config_entries.async_update_entry(entry, version=2)
 
     return True
 
