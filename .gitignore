@@ -1,5 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+**/__pycache__/
 custom_components/__pycache__/
 custom_components/*/__pycache__/
 custom_components/homebrainz/__pycache__/
@@ -66,12 +67,3 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
-custom_components/homebrainz/__pycache__/__init__.cpython-38.pyc
-custom_components/homebrainz/__pycache__/const.cpython-38.pyc
-custom_components/homebrainz/__pycache__/sensor.cpython-38.pyc
-custom_components/homebrainz/__pycache__/__init__.cpython-38.pyc
-custom_components/homebrainz/__pycache__/const.cpython-38.pyc
-custom_components/homebrainz/__pycache__/sensor.cpython-38.pyc
-custom_components/homebrainz/__pycache__/__init__.cpython-38.pyc
-custom_components/homebrainz/__pycache__/const.cpython-38.pyc
-custom_components/homebrainz/__pycache__/sensor.cpython-38.pyc

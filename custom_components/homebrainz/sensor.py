@@ -14,7 +14,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-    UnitOfInformation,
     UnitOfPressure,
     UnitOfTemperature,
     UnitOfTime,
@@ -42,9 +41,6 @@ async def async_setup_entry(
         HomeBrainzTemperatureSensor(coordinator, config_entry),
         HomeBrainzHumiditySensor(coordinator, config_entry),
         HomeBrainzPressureSensor(coordinator, config_entry),
-        HomeBrainzAQISensor(coordinator, config_entry),
-        HomeBrainzCO2Sensor(coordinator, config_entry),
-        HomeBrainzTVOCSensor(coordinator, config_entry),
         HomeBrainzWiFiSignalSensor(coordinator, config_entry),
         HomeBrainzGenericSensor(
             coordinator,
@@ -54,35 +50,6 @@ async def async_setup_entry(
             value_fn=lambda entity: entity.get_sensor_value("bme680", "gas_resistance_kohm"),
             native_unit_of_measurement="kΩ",
             state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Temperature Offset",
-            unique_id_suffix="temperature_offset",
-            value_fn=lambda entity: entity.get_sensor_value("bme680", "temperature_offset"),
-            device_class=SensorDeviceClass.TEMPERATURE,
-            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-            state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Humidity Offset",
-            unique_id_suffix="humidity_offset",
-            value_fn=lambda entity: entity.get_sensor_value("bme680", "humidity_offset"),
-            native_unit_of_measurement=PERCENTAGE,
-            state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="AQI Rating",
-            unique_id_suffix="aqi_rating",
-            value_fn=lambda entity: entity.get_sensor_value("ens160", "aqi_rating"),
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         HomeBrainzGenericSensor(
@@ -99,88 +66,10 @@ async def async_setup_entry(
         HomeBrainzGenericSensor(
             coordinator,
             config_entry,
-            name="Free Heap",
-            unique_id_suffix="free_heap",
-            value_fn=lambda entity: entity.get_status_value("free_heap"),
-            device_class=SensorDeviceClass.DATA_SIZE,
-            native_unit_of_measurement=UnitOfInformation.BYTES,
-            state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
             name="Display Brightness",
             unique_id_suffix="brightness",
             value_fn=lambda entity: entity.get_status_value("brightness"),
             state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Display Mode",
-            unique_id_suffix="display_mode",
-            value_fn=HomeBrainzGenericSensor.get_display_mode,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="WebSocket Clients",
-            unique_id_suffix="websocket_clients",
-            value_fn=lambda entity: entity.get_status_value("websocket_clients"),
-            state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Sensors Available",
-            unique_id_suffix="sensors_available",
-            value_fn=HomeBrainzGenericSensor.get_sensors_available,
-            entity_category=EntityCategory.DIAGNOSTIC,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Weather Available",
-            unique_id_suffix="weather_available",
-            value_fn=lambda entity: entity.get_status_value("weather_available"),
-            entity_category=EntityCategory.DIAGNOSTIC,
-            extra_attributes_fn=HomeBrainzGenericSensor.get_weather_attributes,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Weather Temperature",
-            unique_id_suffix="weather_temperature",
-            value_fn=HomeBrainzGenericSensor.get_weather_temperature,
-            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
-            state_class=SensorStateClass.MEASUREMENT,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Weather Humidity",
-            unique_id_suffix="weather_humidity",
-            value_fn=lambda entity: entity.get_status_value("current_humidity"),
-            native_unit_of_measurement=PERCENTAGE,
-            state_class=SensorStateClass.MEASUREMENT,
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="Weather Description",
-            unique_id_suffix="weather_description",
-            value_fn=lambda entity: entity.get_status_value("weather_description"),
-        ),
-        HomeBrainzGenericSensor(
-            coordinator,
-            config_entry,
-            name="WiFi Connected",
-            unique_id_suffix="wifi_connected",
-            value_fn=HomeBrainzGenericSensor.get_wifi_connected_state,
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         HomeBrainzGenericSensor(
@@ -269,25 +158,9 @@ class HomeBrainzSensorEntity(CoordinatorEntity, SensorEntity):
             return default
         return status.get(key, default)
 
-    def get_sensors_root_value(self, key: str, default: Any | None = None) -> Any | None:
-        """Get a value that resides at the root of the sensor payload."""
-        if not self.coordinator.data:
-            return default
-        sensors = self.coordinator.data.get("sensors", {})
-        if not isinstance(sensors, dict):
-            return default
-        return sensors.get(key, default)
-
 
 class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
     """Generic sensor driven by simple extractor callbacks."""
-
-    display_modes = {
-        0: "clock",
-        1: "weather",
-        2: "description",
-        3: "sensors",
-    }
 
     def __init__(
         self,
@@ -298,7 +171,7 @@ class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
         unique_id_suffix: str,
         value_fn: Callable[[HomeBrainzSensorEntity], Any],
         device_class: SensorDeviceClass | None = None,
-        native_unit_of_measurement: str | UnitOfTemperature | UnitOfPressure | UnitOfInformation | None = None,
+        native_unit_of_measurement: str | UnitOfTemperature | UnitOfPressure | None = None,
         state_class: SensorStateClass | None = None,
         entity_category: EntityCategory | None = None,
         icon: str | None = None,
@@ -341,67 +214,6 @@ class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
             _LOGGER.exception("HomeBrainz sensor '%s' failed to compute attributes", self._attr_name)
             return None
         return attrs
-
-    @staticmethod
-    def get_display_mode(entity: HomeBrainzSensorEntity) -> str | int | None:
-        """Map display mode numeric value to human readable string."""
-        raw_mode = entity.get_status_value("display_mode")
-        if raw_mode is None:
-            return None
-        return HomeBrainzGenericSensor.display_modes.get(raw_mode, raw_mode)
-
-    @staticmethod
-    def get_sensors_available(entity: HomeBrainzSensorEntity) -> bool | None:
-        """Return sensors availability flag from any section."""
-        value = entity.get_sensors_root_value("sensors_available")
-        if value is None:
-            value = entity.get_sensor_value("readings", "sensors_available")
-        if value is None:
-            value = entity.get_status_value("sensors_available")
-        return value
-
-    @staticmethod
-    def get_weather_attributes(entity: HomeBrainzSensorEntity) -> dict[str, Any] | None:
-        status = entity.coordinator.data.get("status") if entity.coordinator.data else None
-        if not isinstance(status, dict):
-            return None
-        attrs = {
-            "current_temp": status.get("current_temp"),
-            "current_humidity": status.get("current_humidity"),
-            "weather_description": status.get("weather_description"),
-        }
-        return {key: value for key, value in attrs.items() if value is not None}
-
-    @staticmethod
-    def get_weather_temperature(entity: HomeBrainzSensorEntity) -> float | str | None:
-        value = entity.get_status_value("current_temp")
-        if value is None:
-            return None
-        if isinstance(value, (int, float)):
-            return value
-        if isinstance(value, str):
-            try:
-                return float(value)
-            except ValueError:
-                stripped = "".join(ch for ch in value if ch in "0123456789.-")
-                if not stripped:
-                    return None
-                try:
-                    return float(stripped)
-                except ValueError:
-                    return None
-        return None
-
-    @staticmethod
-    def get_wifi_connected_state(entity: HomeBrainzSensorEntity) -> str | bool | None:
-        value = entity.get_status_value("wifi_connected")
-        if value is None:
-            return None
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, (int, float)):
-            return bool(value)
-        return value
 
 
 class HomeBrainzTemperatureSensor(HomeBrainzSensorEntity):
@@ -499,82 +311,6 @@ class HomeBrainzPressureSensor(HomeBrainzSensorEntity):
 
             if "bmp280" in sensors:
                 return sensors["bmp280"].get("pressure")
-        return None
-
-
-class HomeBrainzAQISensor(HomeBrainzSensorEntity):
-    """Air Quality Index sensor."""
-
-    def __init__(
-        self,
-        coordinator: HomeBrainzDataUpdateCoordinator,
-        config_entry: ConfigEntry,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{config_entry.entry_id}_aqi"
-        self._attr_name = "Air Quality Index"
-        self._attr_device_class = SensorDeviceClass.AQI
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
-            if "ens160" in sensors:
-                return sensors["ens160"].get("aqi")
-        return None
-
-
-class HomeBrainzCO2Sensor(HomeBrainzSensorEntity):
-    """CO2 sensor."""
-
-    def __init__(
-        self,
-        coordinator: HomeBrainzDataUpdateCoordinator,
-        config_entry: ConfigEntry,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{config_entry.entry_id}_co2"
-        self._attr_name = "CO2"
-        self._attr_device_class = SensorDeviceClass.CO2
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_unit_of_measurement = "ppm"
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
-            if "ens160" in sensors:
-                return sensors["ens160"].get("co2")
-        return None
-
-
-class HomeBrainzTVOCSensor(HomeBrainzSensorEntity):
-    """TVOC sensor."""
-
-    def __init__(
-        self,
-        coordinator: HomeBrainzDataUpdateCoordinator,
-        config_entry: ConfigEntry,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator, config_entry)
-        self._attr_unique_id = f"{config_entry.entry_id}_tvoc"
-        self._attr_name = "TVOC"
-        self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._attr_native_unit_of_measurement = "ppb"
-
-    @property
-    def native_value(self) -> int | None:
-        """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
-            if "ens160" in sensors:
-                return sensors["ens160"].get("tvoc")
         return None
 
 
