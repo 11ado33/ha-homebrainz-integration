@@ -50,7 +50,6 @@ async def async_setup_entry(
             value_fn=lambda entity: entity.get_sensor_value("bme680", "gas_resistance_kohm"),
             native_unit_of_measurement="kΩ",
             state_class=SensorStateClass.MEASUREMENT,
-            entity_category=EntityCategory.DIAGNOSTIC,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -269,6 +268,7 @@ class HomeBrainzHumiditySensor(HomeBrainzSensorEntity):
         self._attr_device_class = SensorDeviceClass.HUMIDITY
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_suggested_display_precision = 1
 
     @property
     def native_value(self) -> float | None:
@@ -299,6 +299,7 @@ class HomeBrainzPressureSensor(HomeBrainzSensorEntity):
         self._attr_device_class = SensorDeviceClass.ATMOSPHERIC_PRESSURE
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = UnitOfPressure.HPA
+        self._attr_suggested_display_precision = 0
 
     @property
     def native_value(self) -> float | None:

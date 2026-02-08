@@ -396,6 +396,48 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.config_entries.async_update_entry(entry, version=2)
 
+    if entry.version < 3:
+        entity_registry = er.async_get(hass)
+        entries = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        removed = 0
+
+        deprecated_tokens = [
+            "tvoc",
+            "co2",
+            "aqi",
+            "air quality",
+            "air_quality",
+            "humidity offset",
+            "humidity_offset",
+            "temperature offset",
+            "temperature_offset",
+            "display mode",
+            "display_mode",
+            "free heap",
+            "free_heap",
+            "sensors available",
+            "sensors_available",
+            "websocket",
+            "websocket client",
+            "websocket_clients",
+            "wifi connected",
+            "wifi_connected",
+        ]
+
+        for entity in entries:
+            haystack = " ".join(
+                part for part in (entity.unique_id, entity.original_name, entity.entity_id) if part
+            ).lower()
+            if any(token in haystack for token in deprecated_tokens):
+                _LOGGER.info("Removing deprecated entity: %s", entity.entity_id)
+                entity_registry.async_remove(entity.entity_id)
+                removed += 1
+
+        if removed:
+            _LOGGER.info("Removed %d deprecated entities", removed)
+
+        hass.config_entries.async_update_entry(entry, version=3)
+
     return True
 
 
