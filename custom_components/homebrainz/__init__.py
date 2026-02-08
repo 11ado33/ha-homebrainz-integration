@@ -34,6 +34,7 @@ WEBSOCKET_MAX_RETRIES = 5
 SERVICE_SET_BRIGHTNESS = "set_brightness"
 SERVICE_DISPLAY_TEXT = "display_text"
 SERVICE_RESTART_DEVICE = "restart_device"
+SERVICE_SET_SCREEN_ROTATION = "set_screen_rotation"
 
 BRIGHTNESS_SCHEMA = vol.Schema({
     vol.Required("device_id"): str,
@@ -47,6 +48,11 @@ DISPLAY_TEXT_SCHEMA = vol.Schema({
 
 RESTART_DEVICE_SCHEMA = vol.Schema({
     vol.Required("device_id"): str,
+})
+
+SCREEN_ROTATION_SCHEMA = vol.Schema({
+    vol.Required("device_id"): str,
+    vol.Required("screens"): vol.All(cv.ensure_list, [cv.string]),
 })
 
 
@@ -395,6 +401,41 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 _LOGGER.info("Restart command sent to device %s", device_id)
             else:
                 _LOGGER.error("Failed to restart device %s", device_id)
+
+    async def set_screen_rotation_service(call: ServiceCall) -> None:
+        """Handle screen rotation service call."""
+        device_id = call.data["device_id"]
+        screens = call.data["screens"]
+
+        coordinator = await _get_coordinator_for_device(hass, device_id)
+        if not coordinator:
+            return
+
+        if isinstance(screens, str):
+            screens = [screen.strip() for screen in screens.split(",") if screen.strip()]
+
+        if not screens:
+            _LOGGER.error("No screens provided for device %s", device_id)
+            return
+
+        try:
+            async with async_timeout.timeout(10):
+                async with coordinator.session.post(
+                    f"http://{coordinator.host}/display/screens",
+                    json={"screens": screens},
+                ) as response:
+                    if response.status == 200:
+                        _LOGGER.info("Updated screen rotation for device %s", device_id)
+                    else:
+                        _LOGGER.error(
+                            "Failed to update screen rotation for device %s: %s",
+                            device_id,
+                            response.status,
+                        )
+        except aiohttp.ClientError as err:
+            _LOGGER.error("HTTP error updating screen rotation for device %s: %s", device_id, err)
+        except asyncio.TimeoutError:
+            _LOGGER.error("Timeout updating screen rotation for device %s", device_id)
     
     hass.services.async_register(
         DOMAIN, SERVICE_SET_BRIGHTNESS, set_brightness_service, schema=BRIGHTNESS_SCHEMA
@@ -405,6 +446,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_RESTART_DEVICE, restart_device_service, schema=RESTART_DEVICE_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_SCREEN_ROTATION, set_screen_rotation_service, schema=SCREEN_ROTATION_SCHEMA
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
@@ -412,6 +456,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_SET_BRIGHTNESS)
     hass.services.async_remove(DOMAIN, SERVICE_DISPLAY_TEXT)
     hass.services.async_remove(DOMAIN, SERVICE_RESTART_DEVICE)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_SCREEN_ROTATION)
 
 
 async def _get_coordinator_for_device(hass: HomeAssistant, device_id: str) -> HomeBrainzDataUpdateCoordinator:

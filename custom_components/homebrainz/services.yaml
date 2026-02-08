@@ -50,3 +50,35 @@ restart_device:
       selector:
         device:
           integration: homebrainz
+
+set_screen_rotation:
+  name: Set Screen Rotation
+  description: Select which screens the display rotates through
+  fields:
+    device_id:
+      name: Device
+      description: The HomeBrainz device to control
+      required: true
+      selector:
+        device:
+          integration: homebrainz
+    screens:
+      name: Screens
+      description: The screens to include in rotation (order is fixed)
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - label: Clock
+              value: clock
+            - label: Temperature
+              value: temp
+            - label: Humidity
+              value: humidity
+            - label: Pressure
+              value: pressure
+            - label: Gas
+              value: gas
+            - label: Air Quality
+              value: iaq
