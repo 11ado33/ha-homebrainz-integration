@@ -25,7 +25,13 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.NUMBER, Platform.SWITCH]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.SWITCH,
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+]
 
 UPDATE_INTERVAL = timedelta(seconds=300)  # 5 minute fallback polling (WebSocket is primary)
 WEBSOCKET_RETRY_DELAY = 10  # seconds
@@ -197,9 +203,10 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             if sensors_available is not None:
                 raw_sensor_data.setdefault("sensors_available", sensors_available)
 
-            existing = self.data or {"sensors": {}, "status": {}, "screens": []}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
             current_status = deepcopy(existing.get("status", {}))
             screens_snapshot = deepcopy(existing.get("screens", []))
+            ota_snapshot = deepcopy(existing.get("ota", {}))
 
             timestamp = data.get("timestamp")
             if timestamp is not None:
@@ -210,6 +217,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 "sensors": raw_sensor_data,
                 "status": current_status,
                 "screens": screens_snapshot,
+                "ota": ota_snapshot,
             })
             
         elif message_type == "status_update":
@@ -224,14 +232,16 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
 
             _LOGGER.debug("Received status update: %s", status_payload)
 
-            existing = self.data or {"sensors": {}, "status": {}, "screens": []}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
             sensors_snapshot = deepcopy(existing.get("sensors", {}))
             screens_snapshot = deepcopy(existing.get("screens", []))
+            ota_snapshot = deepcopy(existing.get("ota", {}))
 
             self.async_set_updated_data({
                 "sensors": sensors_snapshot,
                 "status": status_payload,
                 "screens": screens_snapshot,
+                "ota": ota_snapshot,
             })
 
             if not sensors_snapshot:
@@ -251,14 +261,16 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not isinstance(sensor_data, dict):
                     sensor_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}, "screens": []}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
                 current_status = deepcopy(existing.get("status", {}))
                 screens_snapshot = deepcopy(existing.get("screens", []))
+                ota_snapshot = deepcopy(existing.get("ota", {}))
 
                 self.async_set_updated_data({
                     "sensors": sensor_data,
                     "status": current_status,
                     "screens": screens_snapshot,
+                    "ota": ota_snapshot,
                 })
                     
             elif success and command == "get_status":
@@ -266,27 +278,31 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not isinstance(status_data, dict):
                     status_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}, "screens": []}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
                 sensors_snapshot = deepcopy(existing.get("sensors", {}))
                 screens_snapshot = deepcopy(existing.get("screens", []))
+                ota_snapshot = deepcopy(existing.get("ota", {}))
 
                 self.async_set_updated_data({
                     "sensors": sensors_snapshot,
                     "status": status_data,
                     "screens": screens_snapshot,
+                    "ota": ota_snapshot,
                 })
             elif success:
                 response_data = data.get("data", {}) or {}
                 if isinstance(response_data, dict) and response_data:
-                    existing = self.data or {"sensors": {}, "status": {}, "screens": []}
+                    existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
                     sensors_snapshot = deepcopy(existing.get("sensors", {}))
                     status_snapshot = deepcopy(existing.get("status", {}))
                     screens_snapshot = deepcopy(existing.get("screens", []))
+                    ota_snapshot = deepcopy(existing.get("ota", {}))
                     status_snapshot.update(response_data)
                     self.async_set_updated_data({
                         "sensors": sensors_snapshot,
                         "status": status_snapshot,
                         "screens": screens_snapshot,
+                        "ota": ota_snapshot,
                     })
 
     async def send_device_command(self, command: str, **kwargs):
@@ -298,6 +314,37 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             _LOGGER.warning("Cannot send command %s: WebSocket not connected", command)
             return False
+
+    async def async_fetch_ota_status(self) -> dict:
+        """Fetch OTA status via HTTP."""
+        try:
+            async with async_timeout.timeout(10):
+                async with self.session.get(f"http://{self.host}/api/ota/check") as response:
+                    if response.status == 200:
+                        ota_data = await response.json()
+                        return ota_data if isinstance(ota_data, dict) else {}
+                    _LOGGER.debug("OTA check failed with status %s", response.status)
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            _LOGGER.debug("OTA check HTTP error", exc_info=True)
+        return {}
+
+    async def async_update_ota_status(self) -> None:
+        """Refresh OTA status and merge into coordinator data."""
+        ota_data = await self.async_fetch_ota_status()
+        if not ota_data:
+            return
+
+        existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+        sensors_snapshot = deepcopy(existing.get("sensors", {}))
+        status_snapshot = deepcopy(existing.get("status", {}))
+        screens_snapshot = deepcopy(existing.get("screens", []))
+
+        self.async_set_updated_data({
+            "sensors": sensors_snapshot,
+            "status": status_snapshot,
+            "screens": screens_snapshot,
+            "ota": ota_data,
+        })
 
     async def _async_update_data(self):
         """Update data via HTTP (fallback when WebSocket is not available)."""
@@ -329,17 +376,22 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 except (aiohttp.ClientError, asyncio.TimeoutError):
                     _LOGGER.debug("Unable to fetch screen rotation; keeping cached values")
 
-                existing = self.data or {"screens": []}
+                existing = self.data or {"screens": [], "ota": {}}
                 screens = existing.get("screens", [])
                 if isinstance(screens_data, dict):
                     screens_value = screens_data.get("screens")
                     if isinstance(screens_value, list):
                         screens = screens_value
 
+                ota_data = await self.async_fetch_ota_status()
+                if not ota_data:
+                    ota_data = existing.get("ota", {}) if isinstance(existing, dict) else {}
+
                 return {
                     "sensors": sensor_data if isinstance(sensor_data, dict) else {},
                     "status": status_data if isinstance(status_data, dict) else {},
                     "screens": screens,
+                    "ota": ota_data if isinstance(ota_data, dict) else {},
                 }
                 
         except aiohttp.ClientError as err:

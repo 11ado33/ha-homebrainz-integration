@@ -95,6 +95,30 @@ async def async_setup_entry(
             value_fn=lambda entity: entity.get_status_value("version"),
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Firmware ID",
+            unique_id_suffix="firmware_id",
+            value_fn=lambda entity: entity.get_ota_value("currentFirmwareId"),
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Latest Firmware ID",
+            unique_id_suffix="latest_firmware_id",
+            value_fn=lambda entity: entity.get_ota_value("latestFirmwareId"),
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Latest Firmware Version",
+            unique_id_suffix="latest_firmware_version",
+            value_fn=lambda entity: entity.get_ota_value("latestVersion"),
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
     ]
 
     async_add_entities(entities)
@@ -156,6 +180,15 @@ class HomeBrainzSensorEntity(CoordinatorEntity, SensorEntity):
         if not isinstance(status, dict):
             return default
         return status.get(key, default)
+
+    def get_ota_value(self, key: str, default: Any | None = None) -> Any | None:
+        """Get a value from the OTA section."""
+        if not self.coordinator.data:
+            return default
+        ota = self.coordinator.data.get("ota", {})
+        if not isinstance(ota, dict):
+            return default
+        return ota.get(key, default)
 
 
 class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
