@@ -28,6 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SWITCH,
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
@@ -42,6 +43,7 @@ SERVICE_SET_BRIGHTNESS = "set_brightness"
 SERVICE_DISPLAY_TEXT = "display_text"
 SERVICE_RESTART_DEVICE = "restart_device"
 SERVICE_SET_SCREEN_ROTATION = "set_screen_rotation"
+SERVICE_SET_TIMEZONE = "set_timezone"
 
 BRIGHTNESS_SCHEMA = vol.Schema({
     vol.Required("device_id"): str,
@@ -60,6 +62,11 @@ RESTART_DEVICE_SCHEMA = vol.Schema({
 SCREEN_ROTATION_SCHEMA = vol.Schema({
     vol.Required("device_id"): str,
     vol.Required("screens"): vol.All(cv.ensure_list, [cv.string]),
+})
+
+TIMEZONE_SCHEMA = vol.Schema({
+    vol.Required("device_id"): str,
+    vol.Required("timezone"): str,
 })
 
 
@@ -203,10 +210,11 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             if sensors_available is not None:
                 raw_sensor_data.setdefault("sensors_available", sensors_available)
 
-            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
             current_status = deepcopy(existing.get("status", {}))
             screens_snapshot = deepcopy(existing.get("screens", []))
             ota_snapshot = deepcopy(existing.get("ota", {}))
+            config_snapshot = deepcopy(existing.get("config", {}))
 
             timestamp = data.get("timestamp")
             if timestamp is not None:
@@ -218,6 +226,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 "status": current_status,
                 "screens": screens_snapshot,
                 "ota": ota_snapshot,
+                "config": config_snapshot,
             })
             
         elif message_type == "status_update":
@@ -232,16 +241,18 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
 
             _LOGGER.debug("Received status update: %s", status_payload)
 
-            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+            existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
             sensors_snapshot = deepcopy(existing.get("sensors", {}))
             screens_snapshot = deepcopy(existing.get("screens", []))
             ota_snapshot = deepcopy(existing.get("ota", {}))
+            config_snapshot = deepcopy(existing.get("config", {}))
 
             self.async_set_updated_data({
                 "sensors": sensors_snapshot,
                 "status": status_payload,
                 "screens": screens_snapshot,
                 "ota": ota_snapshot,
+                "config": config_snapshot,
             })
 
             if not sensors_snapshot:
@@ -261,48 +272,54 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not isinstance(sensor_data, dict):
                     sensor_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
                 current_status = deepcopy(existing.get("status", {}))
                 screens_snapshot = deepcopy(existing.get("screens", []))
                 ota_snapshot = deepcopy(existing.get("ota", {}))
+                config_snapshot = deepcopy(existing.get("config", {}))
 
                 self.async_set_updated_data({
                     "sensors": sensor_data,
                     "status": current_status,
                     "screens": screens_snapshot,
                     "ota": ota_snapshot,
+                    "config": config_snapshot,
                 })
-                    
+
             elif success and command == "get_status":
                 status_data = data.get("data", {}) or {}
                 if not isinstance(status_data, dict):
                     status_data = {}
 
-                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+                existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
                 sensors_snapshot = deepcopy(existing.get("sensors", {}))
                 screens_snapshot = deepcopy(existing.get("screens", []))
                 ota_snapshot = deepcopy(existing.get("ota", {}))
+                config_snapshot = deepcopy(existing.get("config", {}))
 
                 self.async_set_updated_data({
                     "sensors": sensors_snapshot,
                     "status": status_data,
                     "screens": screens_snapshot,
                     "ota": ota_snapshot,
+                    "config": config_snapshot,
                 })
             elif success:
                 response_data = data.get("data", {}) or {}
                 if isinstance(response_data, dict) and response_data:
-                    existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+                    existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
                     sensors_snapshot = deepcopy(existing.get("sensors", {}))
                     status_snapshot = deepcopy(existing.get("status", {}))
                     screens_snapshot = deepcopy(existing.get("screens", []))
                     ota_snapshot = deepcopy(existing.get("ota", {}))
+                    config_snapshot = deepcopy(existing.get("config", {}))
                     status_snapshot.update(response_data)
                     self.async_set_updated_data({
                         "sensors": sensors_snapshot,
                         "status": status_snapshot,
                         "screens": screens_snapshot,
                         "ota": ota_snapshot,
+                        "config": config_snapshot,
                     })
 
     async def send_device_command(self, command: str, **kwargs):
@@ -328,22 +345,58 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("OTA check HTTP error", exc_info=True)
         return {}
 
+    async def async_fetch_config(self) -> dict:
+        """Fetch device config via HTTP."""
+        try:
+            async with async_timeout.timeout(10):
+                async with self.session.get(f"http://{self.host}/config.json") as response:
+                    if response.status == 200:
+                        config_data = await response.json()
+                        return config_data if isinstance(config_data, dict) else {}
+                    _LOGGER.debug("Config fetch failed with status %s", response.status)
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            _LOGGER.debug("Config fetch HTTP error", exc_info=True)
+        return {}
+
+    async def async_set_timezone(self, timezone: str) -> bool:
+        """Set timezone on the device via HTTP POST /config."""
+        try:
+            async with async_timeout.timeout(10):
+                async with self.session.post(
+                    f"http://{self.host}/config",
+                    data={"data": json.dumps({"timeZone": timezone})},
+                ) as response:
+                    if response.status == 200:
+                        # Optimistically update coordinator data
+                        existing = self.data or {}
+                        new_data = deepcopy(existing)
+                        config = new_data.setdefault("config", {})
+                        config["timeZone"] = timezone
+                        self.async_set_updated_data(new_data)
+                        return True
+                    _LOGGER.error("Failed to set timezone: HTTP %s", response.status)
+        except (aiohttp.ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("HTTP error setting timezone: %s", err)
+        return False
+
     async def async_update_ota_status(self) -> None:
         """Refresh OTA status and merge into coordinator data."""
         ota_data = await self.async_fetch_ota_status()
         if not ota_data:
             return
 
-        existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}}
+        existing = self.data or {"sensors": {}, "status": {}, "screens": [], "ota": {}, "config": {}}
         sensors_snapshot = deepcopy(existing.get("sensors", {}))
         status_snapshot = deepcopy(existing.get("status", {}))
         screens_snapshot = deepcopy(existing.get("screens", []))
+        config_snapshot = deepcopy(existing.get("config", {}))
 
         self.async_set_updated_data({
             "sensors": sensors_snapshot,
             "status": status_snapshot,
             "screens": screens_snapshot,
             "ota": ota_data,
+            "config": config_snapshot,
         })
 
     async def _async_update_data(self):
@@ -387,11 +440,16 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                 if not ota_data:
                     ota_data = existing.get("ota", {}) if isinstance(existing, dict) else {}
 
+                config_data = await self.async_fetch_config()
+                if not config_data:
+                    config_data = existing.get("config", {}) if isinstance(existing, dict) else {}
+
                 return {
                     "sensors": sensor_data if isinstance(sensor_data, dict) else {},
                     "status": status_data if isinstance(status_data, dict) else {},
                     "screens": screens,
                     "ota": ota_data if isinstance(ota_data, dict) else {},
+                    "config": config_data if isinstance(config_data, dict) else {},
                 }
                 
         except aiohttp.ClientError as err:
@@ -585,6 +643,21 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             _LOGGER.error("HTTP error updating screen rotation for device %s: %s", device_id, err)
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout updating screen rotation for device %s", device_id)
+
+    async def set_timezone_service(call: ServiceCall) -> None:
+        """Handle set timezone service call."""
+        device_id = call.data["device_id"]
+        timezone = call.data["timezone"]
+
+        coordinator = await _get_coordinator_for_device(hass, device_id)
+        if not coordinator:
+            return
+
+        success = await coordinator.async_set_timezone(timezone)
+        if success:
+            _LOGGER.info("Set timezone to %s for device %s", timezone, device_id)
+        else:
+            _LOGGER.error("Failed to set timezone for device %s", device_id)
     
     hass.services.async_register(
         DOMAIN, SERVICE_SET_BRIGHTNESS, set_brightness_service, schema=BRIGHTNESS_SCHEMA
@@ -598,6 +671,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_SCREEN_ROTATION, set_screen_rotation_service, schema=SCREEN_ROTATION_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_TIMEZONE, set_timezone_service, schema=TIMEZONE_SCHEMA
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
@@ -606,6 +682,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, SERVICE_DISPLAY_TEXT)
     hass.services.async_remove(DOMAIN, SERVICE_RESTART_DEVICE)
     hass.services.async_remove(DOMAIN, SERVICE_SET_SCREEN_ROTATION)
+    hass.services.async_remove(DOMAIN, SERVICE_SET_TIMEZONE)
 
 
 async def _get_coordinator_for_device(hass: HomeAssistant, device_id: str) -> HomeBrainzDataUpdateCoordinator:
