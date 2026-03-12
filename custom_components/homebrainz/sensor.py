@@ -51,6 +51,7 @@ async def async_setup_entry(
             value_fn=lambda entity: entity.get_sensor_value("bme680", "gas_resistance_kohm"),
             native_unit_of_measurement="kΩ",
             state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=1,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -130,6 +131,7 @@ async def async_setup_entry(
             icon="mdi:air-filter",
             native_unit_of_measurement="IAQ",
             state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=0,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -149,6 +151,7 @@ async def async_setup_entry(
             icon="mdi:air-filter",
             native_unit_of_measurement="IAQ",
             state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=0,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -159,6 +162,7 @@ async def async_setup_entry(
             device_class=SensorDeviceClass.CO2,
             native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
             state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=0,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -169,6 +173,7 @@ async def async_setup_entry(
             device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
             state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=1,
         ),
         HomeBrainzGenericSensor(
             coordinator,
@@ -266,6 +271,7 @@ class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
         state_class: SensorStateClass | None = None,
         entity_category: EntityCategory | None = None,
         icon: str | None = None,
+        suggested_display_precision: int | None = None,
         extra_attributes_fn: Callable[[HomeBrainzSensorEntity], dict[str, Any] | None] | None = None,
     ) -> None:
         super().__init__(coordinator, config_entry)
@@ -284,6 +290,8 @@ class HomeBrainzGenericSensor(HomeBrainzSensorEntity):
             self._attr_entity_category = entity_category
         if icon is not None:
             self._attr_icon = icon
+        if suggested_display_precision is not None:
+            self._attr_suggested_display_precision = suggested_display_precision
 
     @property
     def native_value(self) -> Any | None:
@@ -322,6 +330,7 @@ class HomeBrainzTemperatureSensor(HomeBrainzSensorEntity):
         self._attr_device_class = SensorDeviceClass.TEMPERATURE
         self._attr_state_class = SensorStateClass.MEASUREMENT
         self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_suggested_display_precision = 1
 
     @property
     def native_value(self) -> float | None:
