@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfPressure,
@@ -118,6 +119,64 @@ async def async_setup_entry(
             unique_id_suffix="latest_firmware_version",
             value_fn=lambda entity: entity.get_ota_value("latestVersion"),
             entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        # ── BSEC Air Quality sensors ──
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Indoor Air Quality",
+            unique_id_suffix="bsec_iaq",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "iaq"),
+            icon="mdi:air-filter",
+            native_unit_of_measurement="IAQ",
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="IAQ Accuracy",
+            unique_id_suffix="bsec_iaq_accuracy",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "iaq_accuracy"),
+            icon="mdi:tune-vertical",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Static IAQ",
+            unique_id_suffix="bsec_static_iaq",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "static_iaq"),
+            icon="mdi:air-filter",
+            native_unit_of_measurement="IAQ",
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="CO₂ Equivalent",
+            unique_id_suffix="bsec_co2_equivalent",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "co2_equivalent"),
+            device_class=SensorDeviceClass.CO2,
+            native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="Breath VOC",
+            unique_id_suffix="bsec_breath_voc",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "breath_voc"),
+            device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+            native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        HomeBrainzGenericSensor(
+            coordinator,
+            config_entry,
+            name="IAQ Rating",
+            unique_id_suffix="bsec_iaq_rating",
+            value_fn=lambda entity: entity.get_sensor_value("bme680", "iaq_rating"),
+            icon="mdi:air-purifier",
         ),
     ]
 
