@@ -20,7 +20,7 @@ Platform | Description
 ## Features
 
 - **Multiple Sensor Support**: Monitors temperature, humidity, atmospheric pressure, air quality (AQI), CO2 levels, TVOC (Total Volatile Organic Compounds), and WiFi signal strength
-- **Automatic Discovery**: Easy setup through Home Assistant's configuration flow
+- **Easy Setup**: Home Assistant configuration flow with mDNS discovery and manual host entry fallback
 - **Real-time Updates**: Polls device every 30 seconds for current sensor readings
 - **Device Information**: Shows device details including firmware version and MAC address
 - **Web Interface**: Direct link to device configuration page
@@ -66,7 +66,7 @@ Platform | Description
 4. Enter your HomeBrainz Clock device's IP address (e.g., `192.168.1.207`)
 5. Click **Submit**
 
-The integration will automatically discover your device and create all available sensor entities.
+If your device advertises mDNS as `homebrainz*.local`, Home Assistant can discover it automatically. You can always enter the host/IP manually as a fallback.
 
 ### Finding Your Device IP Address
 

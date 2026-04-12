@@ -7,6 +7,7 @@ from typing import Any
 import aiohttp
 import async_timeout
 import voluptuous as vol
+from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
@@ -25,19 +26,22 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
+def normalize_host(host: str) -> str:
+    """Normalize user/discovery host input to a plain host value."""
+    normalized_host = host.strip()
+
+    if normalized_host.startswith(("http://", "https://")):
+        normalized_host = normalized_host.split("://", 1)[1]
+
+    return normalized_host.rstrip("/").rstrip(".")
+
+
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    host = data[CONF_HOST]
-    
-    # Remove http/https prefix if present
-    if host.startswith(("http://", "https://")):
-        host = host.split("://", 1)[1]
-    
-    # Remove trailing slash if present
-    host = host.rstrip("/")
+    host = normalize_host(data[CONF_HOST])
     
     session = async_get_clientsession(hass)
     
@@ -64,6 +68,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
                     "mac_address": mac_address,
                 }
                 
+    except InvalidDevice:
+        raise
     except aiohttp.ClientError:
         raise CannotConnect
     except Exception:
@@ -75,6 +81,31 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HomeBrainz."""
 
     VERSION = 3
+
+    async def async_step_zeroconf(
+        self,
+        discovery_info: ZeroconfServiceInfo,
+    ) -> FlowResult:
+        """Handle Zeroconf discovery."""
+        host = discovery_info.host
+        if not host:
+            return self.async_abort(reason="cannot_connect")
+
+        try:
+            info = await validate_input(self.hass, {CONF_HOST: host})
+        except CannotConnect:
+            return self.async_abort(reason="cannot_connect")
+        except InvalidDevice:
+            return self.async_abort(reason="invalid_device")
+
+        unique_id = info["mac_address"] if info["mac_address"] else info["host"]
+        await self.async_set_unique_id(unique_id)
+        self._abort_if_unique_id_configured()
+
+        return self.async_create_entry(
+            title=info["title"],
+            data={CONF_HOST: info["host"]},
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

@@ -15,7 +15,9 @@
       "unknown": "Unexpected error occurred"
     },
     "abort": {
-      "already_configured": "Device is already configured"
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Discovered device could not be reached",
+      "invalid_device": "Discovered service is not a HomeBrainz device"
     }
   }
 }
