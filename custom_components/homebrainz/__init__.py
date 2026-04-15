@@ -32,6 +32,7 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
+    Platform.MEDIA_PLAYER,
 ]
 
 UPDATE_INTERVAL = timedelta(seconds=300)  # 5 minute fallback polling (WebSocket is primary)
@@ -331,6 +332,62 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             _LOGGER.warning("Cannot send command %s: WebSocket not connected", command)
             return False
+
+    async def async_speaker_command(self, action: str, **kwargs) -> bool:
+        """Send a speaker command via HTTP first, then WebSocket fallback."""
+        payload = {key: value for key, value in kwargs.items() if value is not None}
+        endpoint_by_action = {
+            "play": "/speaker/play",
+            "pause": "/speaker/pause",
+            "stop": "/speaker/stop",
+            "set_volume": "/speaker/volume",
+            "mute": "/speaker/mute",
+            "play_media": "/speaker/play",
+        }
+        ws_command_by_action = {
+            "play": "speaker_play",
+            "pause": "speaker_pause",
+            "stop": "speaker_stop",
+            "set_volume": "speaker_set_volume",
+            "mute": "speaker_mute",
+            "play_media": "speaker_play_media",
+        }
+
+        endpoint = endpoint_by_action.get(action)
+        if endpoint:
+            try:
+                async with async_timeout.timeout(10):
+                    async with self.session.post(
+                        f"http://{self.host}{endpoint}",
+                        json=payload,
+                    ) as response:
+                        if response.status == 200:
+                            try:
+                                data = await response.json()
+                            except Exception:
+                                return True
+
+                            if isinstance(data, dict) and data.get("success") is False:
+                                _LOGGER.error("Speaker command %s rejected: %s", action, data)
+                                return False
+                            return True
+
+                        if response.status not in (404, 405):
+                            _LOGGER.error(
+                                "Speaker command %s failed via HTTP: status %s",
+                                action,
+                                response.status,
+                            )
+                            return False
+            except (aiohttp.ClientError, asyncio.TimeoutError):
+                _LOGGER.debug("Speaker HTTP command failed for action %s", action, exc_info=True)
+
+        ws_command = ws_command_by_action.get(action)
+        if ws_command is None:
+            _LOGGER.error("Unknown speaker action requested: %s", action)
+            return False
+
+        return await self.send_device_command(ws_command, **payload)
 
     async def async_fetch_ota_status(self) -> dict:
         """Fetch OTA status via HTTP."""
