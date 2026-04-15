@@ -7,13 +7,18 @@ from typing import Any
 import aiohttp
 import async_timeout
 import voluptuous as vol
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+try:
+    # Newer Home Assistant versions
+    from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
+except ImportError:  # pragma: no cover - fallback for older HA cores
+    from homeassistant.components.zeroconf import ZeroconfServiceInfo
 
 from .const import DOMAIN
 
