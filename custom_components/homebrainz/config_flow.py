@@ -1,6 +1,7 @@
 """Config flow for HomeBrainz integration."""
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -24,6 +25,11 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+DISCOVERY_ENDPOINTS: tuple[str, ...] = (
+    "/api/info",
+    "/status",
+)
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
@@ -41,45 +47,124 @@ def normalize_host(host: str) -> str:
     return normalized_host.rstrip("/").rstrip(".")
 
 
+def _decode_discovery_value(value: Any) -> str:
+    """Decode zeroconf values that may be returned as bytes."""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="ignore")
+
+    return str(value or "")
+
+
+def _is_homebrainz_discovery(discovery_info: ZeroconfServiceInfo) -> bool:
+    """Check whether the zeroconf service looks like a HomeBrainz device."""
+    properties = getattr(discovery_info, "properties", {}) or {}
+    discovery_name = _decode_discovery_value(getattr(discovery_info, "name", "")).lower()
+    hostname = _decode_discovery_value(getattr(discovery_info, "hostname", "")).lower()
+    server = _decode_discovery_value(getattr(discovery_info, "server", "")).lower()
+    service_type = _decode_discovery_value(getattr(discovery_info, "type", "")).lower()
+    path = _decode_discovery_value(properties.get("path") or properties.get(b"path")).lower()
+
+    if service_type == "_homebrainz._tcp.local.":
+        return True
+
+    if path == "/api/info":
+        return True
+
+    return any(
+        candidate.startswith(("homebrainz", "hbz"))
+        for candidate in (discovery_name, hostname, server)
+        if candidate
+    )
+
+
+def _extract_device_info(payload: Any, host: str) -> dict[str, Any] | None:
+    """Normalize device info returned by different HomeBrainz firmware APIs."""
+    if not isinstance(payload, dict):
+        return None
+
+    mac_address = (
+        payload.get("mac_address")
+        or payload.get("macAddress")
+        or payload.get("mac")
+        or ""
+    )
+    title = (
+        payload.get("name")
+        or payload.get("device_name")
+        or payload.get("device")
+        or payload.get("model")
+        or "HomeBrainz"
+    )
+
+    markers = (
+        payload.get("device"),
+        payload.get("name"),
+        payload.get("device_name"),
+        payload.get("device_type"),
+        payload.get("model"),
+        payload.get("type"),
+        title,
+    )
+    looks_like_homebrainz = any(
+        isinstance(marker, str) and "homebrainz" in marker.lower()
+        for marker in markers
+    )
+
+    if payload.get("type") == "HOMEBRAINZ_DEVICE":
+        looks_like_homebrainz = True
+
+    if not looks_like_homebrainz:
+        return None
+
+    return {
+        "title": title,
+        "host": host,
+        "mac_address": mac_address,
+    }
+
+
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
     host = normalize_host(data[CONF_HOST])
-    
     session = async_get_clientsession(hass)
-    
-    try:
-        async with async_timeout.timeout(10):
-            # Test connection to the device
-            async with session.get(f"http://{host}/status") as response:
-                if response.status != 200:
-                    raise CannotConnect
-                
-                status_data = await response.json()
-                
-                # Verify it's a HomeBrainz Clock device by checking for expected fields
-                if "device" not in status_data:
-                    raise InvalidDevice
-                
-                # Get device info for unique ID
-                device_name = status_data.get("device", "HomeBrainz Clock")
-                mac_address = status_data.get("mac_address", "")
-                
-                return {
-                    "title": device_name,
-                    "host": host,
-                    "mac_address": mac_address,
-                }
-                
-    except InvalidDevice:
-        raise
-    except aiohttp.ClientError:
-        raise CannotConnect
-    except Exception:
-        _LOGGER.exception("Unexpected exception")
-        raise CannotConnect
+
+    last_error: Exception | None = None
+    received_non_homebrainz_response = False
+
+    for endpoint in DISCOVERY_ENDPOINTS:
+        try:
+            async with async_timeout.timeout(10):
+                async with session.get(f"http://{host}{endpoint}") as response:
+                    if response.status != 200:
+                        continue
+
+                    payload = await response.json()
+
+            info = _extract_device_info(payload, host)
+            if info is not None:
+                return info
+
+            received_non_homebrainz_response = True
+        except aiohttp.ClientError as err:
+            last_error = err
+        except (asyncio.TimeoutError, TimeoutError) as err:
+            last_error = err
+        except ValueError as err:
+            last_error = err
+        except Exception as err:  # pragma: no cover - defensive logging
+            _LOGGER.debug("Unexpected validation error for %s%s: %s", host, endpoint, err)
+            last_error = err
+
+    if received_non_homebrainz_response:
+        raise InvalidDevice
+
+    if last_error is not None:
+        raise CannotConnect from last_error
+
+    raise CannotConnect
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -92,6 +177,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         discovery_info: ZeroconfServiceInfo,
     ) -> FlowResult:
         """Handle Zeroconf discovery."""
+        if not _is_homebrainz_discovery(discovery_info):
+            return self.async_abort(reason="invalid_device")
+
         host = discovery_info.host
         if not host:
             return self.async_abort(reason="cannot_connect")

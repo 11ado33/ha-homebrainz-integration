@@ -66,7 +66,7 @@ Platform | Description
 4. Enter your HomeBrainz Clock device's IP address (e.g., `192.168.1.207`)
 5. Click **Submit**
 
-If your device advertises mDNS as `homebrainz*.local`, Home Assistant can discover it automatically. You can always enter the host/IP manually as a fallback.
+Home Assistant auto-discovery works with current HomeBrainz mDNS variants, including `homebrainz*.local`, `HBZ*.local`, and devices that publish the dedicated `_homebrainz._tcp` service. You can always enter the host/IP manually as a fallback.
 
 ### Finding Your Device IP Address
 

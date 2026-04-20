@@ -11,8 +11,11 @@
   "loggers": ["custom_components.homebrainz"],
   "requirements": ["aiohttp>=3.8.0", "websockets>=11.0"],
   "ssdp": [],
-  "version": "0.0.9",
+  "version": "0.0.10",
   "zeroconf": [
+    {
+      "type": "_homebrainz._tcp.local."
+    },
     {
       "type": "_http._tcp.local.",
       "name": "homebrainz*"
@@ -20,6 +23,14 @@
     {
       "type": "_http._tcp.local.",
       "name": "HomeBrainz*"
+    },
+    {
+      "type": "_http._tcp.local.",
+      "name": "HBZ*"
+    },
+    {
+      "type": "_http._tcp.local.",
+      "name": "hbz*"
     }
   ]
 }

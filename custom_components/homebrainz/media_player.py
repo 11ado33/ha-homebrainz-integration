@@ -11,6 +11,7 @@ from homeassistant.components.media_player.const import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.network import get_url
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -207,9 +208,11 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
         **kwargs: Any,
     ) -> None:
         """Play media by id/url."""
+        resolved_media_id = await self._resolve_media_id(media_id)
+
         payload: dict[str, Any] = {
             "media_type": str(media_type),
-            "media_id": media_id,
+            "media_id": resolved_media_id,
         }
 
         announce = kwargs.get("announce")
@@ -224,3 +227,33 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
         if success:
             self._optimistic_state = MediaPlayerState.PLAYING
             self.async_write_ha_state()
+
+    async def _resolve_media_id(self, media_id: str) -> str:
+        """Resolve Home Assistant media IDs to a concrete URL the device can fetch."""
+        resolved = media_id
+
+        if media_id.startswith("media-source://"):
+            try:
+                from homeassistant.components.media_source import async_resolve_media
+
+                media = await async_resolve_media(self.hass, media_id, self.entity_id)
+                resolved = media.url
+            except Exception:
+                # Keep original id; coordinator/firmware will log error if unusable.
+                return media_id
+
+        if resolved.startswith("/"):
+            try:
+                base = get_url(self.hass, prefer_external=False)
+                resolved = f"{base}{resolved}"
+            except Exception:
+                return resolved
+
+        try:
+            from homeassistant.components.media_player.browse_media import async_process_play_media_url
+
+            resolved = async_process_play_media_url(self.hass, resolved)
+        except Exception:
+            pass
+
+        return resolved
