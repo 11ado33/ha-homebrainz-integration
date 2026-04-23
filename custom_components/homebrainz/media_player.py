@@ -66,6 +66,8 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
         self._optimistic_state = MediaPlayerState.IDLE
         self._optimistic_volume_level = 0.5
         self._optimistic_is_muted = False
+        self._last_media_id: str | None = None
+        self._last_media_type: str = str(MediaType.MUSIC)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -209,7 +211,14 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
 
     async def async_media_play(self) -> None:
         """Resume playback."""
-        success = await self.coordinator.async_speaker_command("play")
+        if self._last_media_id:
+            success = await self.coordinator.async_speaker_command(
+                "play_media",
+                media_type=self._last_media_type,
+                media_id=self._last_media_id,
+            )
+        else:
+            success = await self.coordinator.async_speaker_command("play")
         if success:
             self._optimistic_state = MediaPlayerState.PLAYING
             self.async_write_ha_state()
@@ -253,6 +262,8 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
 
         success = await self.coordinator.async_speaker_command("play_media", **payload)
         if success:
+            self._last_media_id = resolved_media_id
+            self._last_media_type = str(media_type)
             self._optimistic_state = MediaPlayerState.PLAYING
             self.async_write_ha_state()
 
