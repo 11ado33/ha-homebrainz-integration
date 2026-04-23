@@ -1,7 +1,9 @@
 """Media player platform for HomeBrainz integration."""
 from __future__ import annotations
 
+import logging
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.const import (
@@ -18,6 +20,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import HomeBrainzDataUpdateCoordinator
 from .const import DOMAIN, MANUFACTURER, MODEL
+
+_LOGGER = logging.getLogger(__name__)
 
 SPEAKER_FEATURES = (
     MediaPlayerEntityFeature.VOLUME_SET
@@ -92,7 +96,20 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
     def _speaker_data(self) -> dict[str, Any]:
         status = self._status()
         speaker = status.get("speaker", {})
-        return speaker if isinstance(speaker, dict) else {}
+        if isinstance(speaker, dict):
+            return speaker
+
+        # Atmos firmware reports speaker values as top-level status keys.
+        merged: dict[str, Any] = {}
+        if "speaker_playing" in status:
+            merged["playing"] = status.get("speaker_playing")
+        if "speaker_muted" in status:
+            merged["muted"] = status.get("speaker_muted")
+        if "speaker_volume" in status:
+            merged["volume"] = status.get("speaker_volume")
+        if "speaker_available" in status:
+            merged["available"] = status.get("speaker_available")
+        return merged
 
     @property
     def available(self) -> bool:
@@ -121,6 +138,14 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
                 return MediaPlayerState.IDLE
             if normalized == "unavailable":
                 return MediaPlayerState.OFF
+
+        raw_playing = speaker.get("playing")
+        if isinstance(raw_playing, bool):
+            return MediaPlayerState.PLAYING if raw_playing else MediaPlayerState.IDLE
+
+        raw_available = speaker.get("available")
+        if isinstance(raw_available, bool) and not raw_available:
+            return MediaPlayerState.OFF
 
         return self._optimistic_state
 
@@ -191,7 +216,8 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
         """Pause playback."""
         success = await self.coordinator.async_speaker_command("pause")
         if success:
-            self._optimistic_state = MediaPlayerState.PAUSED
+            # Current firmware maps pause to stop.
+            self._optimistic_state = MediaPlayerState.IDLE
             self.async_write_ha_state()
 
     async def async_media_stop(self) -> None:
@@ -255,5 +281,17 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
             resolved = async_process_play_media_url(self.hass, resolved)
         except Exception:
             pass
+
+        # Atmos firmware currently supports plain HTTP stream URLs only.
+        if resolved.startswith("https://"):
+            parsed = urlparse(resolved)
+            resolved = urlunparse(parsed._replace(scheme="http"))
+            _LOGGER.debug("Converted HTTPS media URL to HTTP for Atmos device compatibility: %s", resolved)
+
+        if not resolved.startswith("http://"):
+            _LOGGER.warning(
+                "Unsupported media URL for Atmos speaker (requires http://): %s",
+                resolved,
+            )
 
         return resolved

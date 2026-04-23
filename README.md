@@ -1,4 +1,4 @@
-# HomeBrainz Home Assistant Integration
+# HomeBrainz Home Assistant Integration for inkVision(R)
 
 <p align="center">
   <img src="custom_components/homebrainz/icons/logo.svg" alt="HomeBrainz Logo" width="200">
@@ -12,6 +12,8 @@
 [![Project Maintenance][maintenance-shield]][user_profile]
 
 **This integration will set up the following platforms.**
+
+HomeBrainz develops the inkVision(R) product line. Learn more at [homebrainz.eu][homebrainz-site] and [inkvision.eu][inkvision-site].
 
 Platform | Description
 -- | --
@@ -27,7 +29,11 @@ Platform | Description
 
 ## Supported Devices
 
-- HomeBrainz Clock with sensor package
+- inkVision(R) Atmos Smart Clock (HomeBrainz firmware)
+- inkVision(R) Bento Bar (HomeBrainz firmware, with compatible sensor package)
+- inkVision(R) Clock (legacy HomeBrainz clock firmware)
+
+Supported sensor packages include:
   - AHT20 Temperature & Humidity Sensor
   - BMP280 Barometric Pressure Sensor  
   - ENS160 Air Quality Sensor (AQI, CO2, TVOC)
@@ -63,10 +69,10 @@ Platform | Description
 1. In Home Assistant, go to **Settings** > **Devices & Services**
 2. Click **Add Integration**
 3. Search for "HomeBrainz" and select it
-4. Enter your HomeBrainz Clock device's IP address (e.g., `192.168.1.207`)
+4. Enter your inkVision(R) device IP address (e.g., `192.168.1.207`)
 5. Click **Submit**
 
-Home Assistant auto-discovery works with current HomeBrainz mDNS variants, including `homebrainz*.local`, `HBZ*.local`, and devices that publish the dedicated `_homebrainz._tcp` service. You can always enter the host/IP manually as a fallback.
+Home Assistant auto-discovery works with current HomeBrainz and inkVision(R) mDNS variants, including `homebrainz*.local`, `HBZ*.local`, and devices that publish the dedicated `_homebrainz._tcp` service. You can always enter the host/IP manually as a fallback.
 
 ### Finding Your Device IP Address
 
@@ -89,7 +95,7 @@ Once configured, the integration will create the following entities:
 
 ## Device Configuration
 
-Your HomeBrainz Clock device can be configured through its web interface. The integration provides a direct link to the device configuration page in the device information panel.
+Your inkVision(R) device can be configured through its web interface. The integration provides a direct link to the device configuration page in the device information panel.
 
 ### Web Interface Features
 
@@ -134,4 +140,6 @@ If you want to contribute to this please read the [Contribution guidelines](CONT
 [maintenance-shield]: https://img.shields.io/badge/maintainer-%4011ado33-blue.svg?style=for-the-badge
 [releases-shield]: https://img.shields.io/github/release/11ado33/ha-homebrainz-integration.svg?style=for-the-badge
 [releases]: https://github.com/11ado33/ha-homebrainz-integration/releases
+[homebrainz-site]: https://homebrainz.eu
+[inkvision-site]: https://inkvision.eu
 [user_profile]: https://github.com/11ado33
