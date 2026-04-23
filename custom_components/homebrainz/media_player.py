@@ -24,6 +24,8 @@ from .const import DOMAIN, MANUFACTURER, MODEL
 _LOGGER = logging.getLogger(__name__)
 
 SPEAKER_FEATURES = (
+    MediaPlayerEntityFeature.BROWSE_MEDIA
+    |
     MediaPlayerEntityFeature.VOLUME_SET
     | MediaPlayerEntityFeature.VOLUME_MUTE
     | MediaPlayerEntityFeature.PLAY
@@ -295,3 +297,16 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
             )
 
         return resolved
+
+    async def async_browse_media(self, media_content_type=None, media_content_id=None):
+        """Browse Home Assistant media sources for this player."""
+        try:
+            from homeassistant.components import media_source
+
+            if not media_content_id:
+                media_content_id = "media-source://"
+
+            return await media_source.async_browse_media(self.hass, media_content_id)
+        except Exception as err:
+            _LOGGER.error("Failed to browse media for HomeBrainz speaker: %s", err)
+            raise
