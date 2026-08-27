@@ -20,6 +20,10 @@ _LOGGER = logging.getLogger(__name__)
 # truncates to this length anyway, but capping in the UI avoids surprises.
 CUSTOM_TEXT_MAX_LEN = 96
 
+# First firmware_id (see AtmosDevice.h / the backend's firmware table) that
+# understands the "display_text" WebSocket command without silently ignoring it.
+MIN_FIRMWARE_ID_CUSTOM_TEXT = 2
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -49,6 +53,21 @@ class HomeBrainzCustomTextEntity(CoordinatorEntity, TextEntity):
         self._host = config_entry.data["host"]
         self._attr_unique_id = f"{config_entry.entry_id}_custom_text"
         self._attr_native_value = ""
+
+    @property
+    def available(self) -> bool:
+        """Unavailable on firmware that predates the display_text command.
+
+        Older devices silently ignore the command (unknown WS commands are a
+        no-op), so without this the entity would look normal but do nothing.
+        Devices that haven't reported a firmware_id at all are old builds
+        from before this field existed - also gated off.
+        """
+        if not super().available or not self.coordinator.data:
+            return False
+        status = self.coordinator.data.get("status", {}) or {}
+        firmware_id = status.get("firmware_id")
+        return isinstance(firmware_id, int) and firmware_id >= MIN_FIRMWARE_ID_CUSTOM_TEXT
 
     @property
     def device_info(self) -> DeviceInfo:
