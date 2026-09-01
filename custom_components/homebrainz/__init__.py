@@ -9,7 +9,6 @@ from copy import deepcopy
 import voluptuous as vol
 
 import aiohttp
-import async_timeout
 import websockets
 from websockets.exceptions import WebSocketException, ConnectionClosedError
 from homeassistant.config_entries import ConfigEntry
@@ -153,13 +152,13 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
                         "WebSocket connection lost (%s), retrying in %d seconds (attempt %d/%d)",
                         err, delay, self._retry_count, WEBSOCKET_MAX_RETRIES
                     )
-                    await asyncio.sleep(delay)
                 else:
+                    delay = 60
                     _LOGGER.error(
-                        "WebSocket connection failed after %d attempts, falling back to HTTP polling",
-                        WEBSOCKET_MAX_RETRIES
+                        "WebSocket still failing after %d attempts, retrying every %d seconds",
+                        self._retry_count, delay
                     )
-                    break
+                await asyncio.sleep(delay)
                     
             except asyncio.CancelledError:
                 _LOGGER.debug("WebSocket handler cancelled")
@@ -222,7 +221,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
             if timestamp is not None:
                 current_status["last_sensor_update"] = timestamp
 
-            _LOGGER.info("Updating sensor data via WebSocket: %s", raw_sensor_data)
+            _LOGGER.debug("Updating sensor data via WebSocket: %s", raw_sensor_data)
             self.async_set_updated_data({
                 "sensors": raw_sensor_data,
                 "status": current_status,
@@ -357,7 +356,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
         endpoint = endpoint_by_action.get(action)
         if endpoint:
             try:
-                async with async_timeout.timeout(10):
+                async with asyncio.timeout(10):
                     async with self.session.post(
                         f"http://{self.host}{endpoint}",
                         json=payload,
@@ -393,7 +392,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_fetch_ota_status(self) -> dict:
         """Fetch OTA status via HTTP."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self.session.get(f"http://{self.host}/api/ota/check") as response:
                     if response.status == 200:
                         ota_data = await response.json()
@@ -406,7 +405,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_fetch_config(self) -> dict:
         """Fetch device config via HTTP."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self.session.get(f"http://{self.host}/config.json") as response:
                     if response.status == 200:
                         config_data = await response.json()
@@ -419,7 +418,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
     async def async_set_timezone(self, timezone: str) -> bool:
         """Set timezone on the device via HTTP POST /config."""
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self.session.post(
                     f"http://{self.host}/config",
                     data={"data": json.dumps({"timeZone": timezone})},
@@ -464,7 +463,7 @@ class HomeBrainzDataUpdateCoordinator(DataUpdateCoordinator):
         else:
             _LOGGER.debug("WebSocket not connected, using HTTP polling")
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 # Fetch sensor data from the device
                 async with self.session.get(f"http://{self.host}/sensors") as response:
                     if response.status == 200:
@@ -651,7 +650,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         if coordinator:
             success = await coordinator.send_device_command("display_text", text=text)
             if success:
-                _LOGGER.info("Displayed text '%s' on device %s", text, device_id)
+                _LOGGER.debug("Displayed text '%s' on device %s", text, device_id)
             else:
                 _LOGGER.error("Failed to display text on device %s", device_id)
     
@@ -684,7 +683,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             return
 
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with coordinator.session.post(
                     f"http://{coordinator.host}/display/screens",
                     json={"screens": screens},
@@ -751,15 +750,11 @@ async def _get_coordinator_for_device(hass: HomeAssistant, device_id: str) -> Ho
     if not device:
         _LOGGER.error("Device %s not found", device_id)
         return None
-    
-    # Find the config entry for this device
-    for entry_id, coordinator in hass.data[DOMAIN].items():
-        # Check if this coordinator handles this device
-        if device.identifiers:
-            for identifier in device.identifiers:
-                if identifier[0] == DOMAIN:
-                    # This should match the device info in sensors
-                    return coordinator
-    
+
+    for entry_id in device.config_entries:
+        coordinator = hass.data[DOMAIN].get(entry_id)
+        if coordinator:
+            return coordinator
+
     _LOGGER.error("No coordinator found for device %s", device_id)
     return None

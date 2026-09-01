@@ -6,7 +6,6 @@ from copy import deepcopy
 import logging
 
 import aiohttp
-import async_timeout
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -148,7 +147,7 @@ class HomeBrainzScreenSwitch(HomeBrainzSwitchEntity):
             return
 
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with self.coordinator.session.post(
                     f"http://{self.coordinator.host}/display/screens",
                     json={"screens": new_screens},

@@ -206,18 +206,20 @@ class HomeBrainzSensorEntity(CoordinatorEntity, SensorEntity):
         """Return device information."""
         device_name = "HomeBrainz Clock"
         mac_address = ""
-        
-        if self.coordinator.data and "status" in self.coordinator.data:
-            status = self.coordinator.data["status"]
-            device_name = status.get("device", "HomeBrainz Clock")
-            mac_address = status.get("mac_address", "")
+
+        status = {}
+        if self.coordinator.data:
+            status = self.coordinator.data.get("status", {}) or {}
+            if isinstance(status, dict):
+                device_name = status.get("device", device_name)
+                mac_address = status.get("mac_address", mac_address)
 
         return DeviceInfo(
             identifiers={(DOMAIN, mac_address or self._host)},
             name=device_name,
             manufacturer=MANUFACTURER,
             model=MODEL,
-            sw_version=self.coordinator.data.get("status", {}).get("version", "Unknown"),
+            sw_version=status.get("version", "Unknown") if isinstance(status, dict) else "Unknown",
             configuration_url=f"http://{self._host}",
         )
 
@@ -335,20 +337,17 @@ class HomeBrainzTemperatureSensor(HomeBrainzSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
+        # Prefer BME680 temperature
+        temp = self.get_sensor_value("bme680", "temperature")
+        if temp is not None:
+            _LOGGER.debug("Temperature sensor returning BME680 value: %s", temp)
+            return temp
 
-            # Prefer BME680 temperature
-            if "bme680" in sensors:
-                temp = sensors["bme680"].get("temperature")
-                _LOGGER.debug("Temperature sensor returning BME680 value: %s", temp)
-                return temp
-
-            # Legacy fallback for older firmware
-            if "aht20" in sensors:
-                temp = sensors["aht20"].get("temperature")
-                _LOGGER.debug("Temperature sensor returning legacy AHT20 value: %s", temp)
-                return temp
+        # Legacy fallback for older firmware
+        temp = self.get_sensor_value("aht20", "temperature")
+        if temp is not None:
+            _LOGGER.debug("Temperature sensor returning legacy AHT20 value: %s", temp)
+            return temp
 
         _LOGGER.debug("Temperature sensor: no data available")
         return None
@@ -374,15 +373,11 @@ class HomeBrainzHumiditySensor(HomeBrainzSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
+        humidity = self.get_sensor_value("bme680", "humidity")
+        if humidity is not None:
+            return humidity
 
-            if "bme680" in sensors:
-                return sensors["bme680"].get("humidity")
-
-            if "aht20" in sensors:
-                return sensors["aht20"].get("humidity")
-        return None
+        return self.get_sensor_value("aht20", "humidity")
 
 
 class HomeBrainzPressureSensor(HomeBrainzSensorEntity):
@@ -405,15 +400,11 @@ class HomeBrainzPressureSensor(HomeBrainzSensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        if self.coordinator.data and "sensors" in self.coordinator.data:
-            sensors = self.coordinator.data["sensors"]
+        pressure = self.get_sensor_value("bme680", "pressure")
+        if pressure is not None:
+            return pressure
 
-            if "bme680" in sensors:
-                return sensors["bme680"].get("pressure")
-
-            if "bmp280" in sensors:
-                return sensors["bmp280"].get("pressure")
-        return None
+        return self.get_sensor_value("bmp280", "pressure")
 
 
 class HomeBrainzWiFiSignalSensor(HomeBrainzSensorEntity):

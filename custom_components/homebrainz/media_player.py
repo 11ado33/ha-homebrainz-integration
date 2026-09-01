@@ -1,6 +1,7 @@
 """Media player platform for HomeBrainz integration."""
 from __future__ import annotations
 
+import ipaddress
 import logging
 from typing import Any
 from urllib.parse import urlparse, urlunparse
@@ -22,6 +23,20 @@ from . import HomeBrainzDataUpdateCoordinator
 from .const import DOMAIN, MANUFACTURER, MODEL
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _is_local_network_host(hostname: str) -> bool:
+    """Return True if hostname refers to a local-network address."""
+    if not hostname:
+        return False
+    if hostname.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    return ip.is_private or ip.is_loopback or ip.is_link_local
+
 
 SPEAKER_FEATURES = (
     MediaPlayerEntityFeature.BROWSE_MEDIA
@@ -296,10 +311,16 @@ class HomeBrainzSpeakerEntity(CoordinatorEntity, MediaPlayerEntity):
             pass
 
         # Atmos firmware currently supports plain HTTP stream URLs only.
+        # Only downgrade local-network URLs; remote HTTPS streams and HA's
+        # own signed media-source URLs must keep their scheme intact.
         if resolved.startswith("https://"):
             parsed = urlparse(resolved)
-            resolved = urlunparse(parsed._replace(scheme="http"))
-            _LOGGER.debug("Converted HTTPS media URL to HTTP for Atmos device compatibility: %s", resolved)
+            if _is_local_network_host(parsed.hostname or ""):
+                resolved = urlunparse(parsed._replace(scheme="http"))
+                _LOGGER.warning(
+                    "Downgraded local HTTPS media URL to HTTP for Atmos device compatibility: %s",
+                    resolved,
+                )
 
         if not resolved.startswith("http://"):
             _LOGGER.warning(

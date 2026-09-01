@@ -82,3 +82,21 @@ set_screen_rotation:
               value: gas
             - label: Air Quality
               value: iaq
+
+set_timezone:
+  name: Set Timezone
+  description: Set the timezone on the HomeBrainz device
+  fields:
+    device_id:
+      name: Device
+      description: The HomeBrainz device to control
+      required: true
+      selector:
+        device:
+          integration: homebrainz
+    timezone:
+      name: Timezone
+      description: IANA timezone name (e.g. Europe/Prague)
+      required: true
+      selector:
+        text:

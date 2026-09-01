@@ -6,7 +6,6 @@ import logging
 from typing import Any
 
 import aiohttp
-import async_timeout
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
@@ -147,7 +146,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     for endpoint in DISCOVERY_ENDPOINTS:
         try:
-            async with async_timeout.timeout(10):
+            async with asyncio.timeout(10):
                 async with session.get(f"http://{host}{endpoint}") as response:
                     if response.status != 200:
                         continue

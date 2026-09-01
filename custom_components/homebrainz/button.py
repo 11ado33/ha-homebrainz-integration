@@ -5,7 +5,6 @@ import asyncio
 import logging
 
 import aiohttp
-import async_timeout
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -114,7 +113,7 @@ class HomeBrainzFirmwareUpdateButton(HomeBrainzButtonEntity):
             return
 
         try:
-            async with async_timeout.timeout(15):
+            async with asyncio.timeout(15):
                 async with self.coordinator.session.post(
                     f"http://{self._host}/api/ota/update",
                     json={"url": download_url, "confirm": True},
